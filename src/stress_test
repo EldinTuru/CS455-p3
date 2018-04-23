@@ -1,0 +1,64 @@
+#!/bin/bash
+
+client="IdClient"
+server="IdServer"
+
+# create multiple client accounts simultaneously
+counter=1
+while (($counter <= $1));
+do
+	name="tester"$counter
+	echo "Creating "$name"..."
+	java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' $client --server localhost --numport $2 --create $name &
+	((counter++))
+done
+
+sleep 2
+
+# lookup different accounts simultaneously
+counter=1
+while (($counter <= $1));
+do
+        name="tester"$counter
+        echo "Looking up "$name"..."
+        java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' $client --server localhost --numport $2 --lookup $name &
+        ((counter++))
+done
+
+sleep 2
+
+# change the names of multiple client accounts simultaneously
+counter=1
+while (($counter <= $1));
+do
+        name="tester"$counter
+        echo "Changing name "$name" to new"$name"..."
+        java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' $client --server localhost --numport $2 --modify $name new$name &
+        ((counter++))
+done
+
+sleep 2
+
+# delete multiple client  accounts simultaneously
+counter=1
+while (($counter <= $1));
+do
+        name="newtester"$counter
+        echo "Deleting new"$name"..."
+        java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' $client --server localhost --numport $2 --delete $name &
+        ((counter++))
+done
+
+sleep 2
+
+# trying to add same username simultaneously
+counter=1
+while (($counter <= $1));
+do
+	java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' $client --server localhost --numport $2 --create edin &
+	((counter++))
+done
+
+sleep 1
+java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' $client --server localhost --numport $2 --delete edin
+
