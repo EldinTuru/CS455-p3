@@ -91,8 +91,12 @@ public class IdServer implements Service, Runnable {
 					System.out.println("Attempting to connect to: " + networkInterface.getName());
 					NetworkInterface net = NetworkInterface.getByName(networkInterface.getName());
 					s.setNetworkInterface(net);
-					s.joinGroup(group);
-					break;
+					try {
+                        s.joinGroup(group);
+                        break;
+                    } catch (IOException e) {
+                        System.err.println("Failed joining multicast group: " + e.getMessage());
+                    }
 				}
 			}
         } catch (IOException e) {
