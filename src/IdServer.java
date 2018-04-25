@@ -148,7 +148,7 @@ public class IdServer implements Service, Runnable {
                 RMIClientSocketFactory rmiClientSocketFactory = new SslRMIClientSocketFactory();
                 RMIServerSocketFactory rmiServerSocketFactory = new SslRMIServerSocketFactory();
                 Service stub = (Service) UnicastRemoteObject.exportObject(server, 0, rmiClientSocketFactory, rmiServerSocketFactory);
-                Registry registry = LocateRegistry.createRegistry(Integer.parseInt(port));
+                Registry registry = LocateRegistry.getRegistry(Integer.parseInt(port));
                 registry.rebind(name, stub);
                 System.out.println("IdServer is bound!");
             }

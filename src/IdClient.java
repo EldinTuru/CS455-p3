@@ -73,7 +73,7 @@ public class IdClient {
 						serve = (Service) registry.lookup(name);
 						break;
 					} catch (Exception e) {
-						continue;
+						System.out.println("Failed to connect to host: " + host + ", Error: " + e.getMessage());
 					}
 				}
 
