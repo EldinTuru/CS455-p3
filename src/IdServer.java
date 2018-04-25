@@ -89,9 +89,9 @@ public class IdServer implements Service, Runnable {
 				NetworkInterface networkInterface = (NetworkInterface) networkInterfaces.nextElement();
 				if(networkInterface.getName().startsWith("wlan") || networkInterface.getName().startsWith("eth")) {
 					System.out.println("Attempting to connect to: " + networkInterface.getName());
-					NetworkInterface net = NetworkInterface.getByName(networkInterface.getName());
-					s.setNetworkInterface(net);
-					try {
+                    try {
+                        NetworkInterface net = NetworkInterface.getByName(networkInterface.getName());
+                        s.setNetworkInterface(net);
                         s.joinGroup(group);
                         break;
                     } catch (IOException e) {
