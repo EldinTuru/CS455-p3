@@ -60,9 +60,10 @@ public class IdServer implements Service, Runnable {
         } else if (args.length == 1 && (args[0].equals("--verbose") || args[0].equals("-v"))) {
         	verboseArg = true;
         }
+        String ipaddress = "";
 		if (System.getSecurityManager() == null){
         	try {
-				String ipaddress = Inet4Address.getLocalHost().getHostAddress();
+				ipaddress = Inet4Address.getLocalHost().getHostAddress();
 				System.setProperty("java.rmi.server.hostname", ipaddress);
 				System.out.println("Server's IP address: " + ipaddress);
 			} catch (UnknownHostException e) {
@@ -110,7 +111,7 @@ public class IdServer implements Service, Runnable {
             pid = pid.substring(0, pid.indexOf('@'));
             System.out.println("This servers pid is " + pid);
             StringWriter str = new StringWriter();
-            str.write(pid);
+            str.write(Listener.NEW_SERVER + ";" + pid + ";" + ipaddress);
             DatagramPacket electionPacket = new DatagramPacket(str.toString().getBytes(), str.toString().length(), group,
                     MULTICAST_PORT);
             // Send PID to everyone in the group
@@ -160,6 +161,9 @@ public class IdServer implements Service, Runnable {
         } catch (IOException | NullPointerException e) {
 		    System.err.println("Failed while attempting to send/receive multicast packet: " + e.getMessage());
         }
+
+        Listener listener = new Listener(s);
+		listener.start();
 
 		try {
 		    if (IdServer.isCoordinator()) {
