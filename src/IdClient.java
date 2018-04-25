@@ -69,11 +69,12 @@ public class IdClient {
 				for (String currHost: hosts) {
 					try {
 						String name = "//" + currHost + ":" + port + "/Service";
-						Registry registry = LocateRegistry.getRegistry(Integer.parseInt(port));
+						Registry registry = LocateRegistry.getRegistry(currHost, Integer.parseInt(port));
 						serve = (Service) registry.lookup(name);
 						break;
 					} catch (Exception e) {
 						System.out.println("Failed to connect to host: " + host + ", Error: " + e.getMessage());
+						e.printStackTrace();
 					}
 				}
 

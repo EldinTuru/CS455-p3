@@ -83,9 +83,18 @@ public class IdServer implements Service, Runnable {
 		try {
             group = InetAddress.getByName(MULTICAST_ADDRESS);
             s = new MulticastSocket(MULTICAST_PORT);
-            NetworkInterface net = NetworkInterface.getByName("eth0"); // TODO make this not hard coded, or loop thru
-            s.setNetworkInterface(net);
-            s.joinGroup(group);
+			Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
+			while (networkInterfaces.hasMoreElements())
+			{
+				NetworkInterface networkInterface = (NetworkInterface) networkInterfaces.nextElement();
+				if(networkInterface.getName().startsWith("wlan") || networkInterface.getName().startsWith("eth")) {
+					System.out.println("Attempting to connect to: " + networkInterface.getName());
+					NetworkInterface net = NetworkInterface.getByName(networkInterface.getName());
+					s.setNetworkInterface(net);
+					s.joinGroup(group);
+					break;
+				}
+			}
         } catch (IOException e) {
             System.err.println("Failed joining multicast group: " + e.getMessage());
         }
@@ -155,7 +164,7 @@ public class IdServer implements Service, Runnable {
                 RMIClientSocketFactory rmiClientSocketFactory = new SslRMIClientSocketFactory();
                 RMIServerSocketFactory rmiServerSocketFactory = new SslRMIServerSocketFactory();
                 Service stub = (Service) UnicastRemoteObject.exportObject(server, 0, rmiClientSocketFactory, rmiServerSocketFactory);
-                Registry registry = LocateRegistry.getRegistry(Integer.parseInt(port));
+                Registry registry = LocateRegistry.createRegistry(Integer.parseInt(port));
                 registry.rebind(name, stub);
                 System.out.println("IdServer is bound!");
             }
