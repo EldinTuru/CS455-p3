@@ -64,6 +64,7 @@ public class IdServer implements Service, Runnable {
         	try {
 				String ipaddress = Inet4Address.getLocalHost().getHostAddress();
 				System.setProperty("java.rmi.server.hostname", ipaddress);
+				System.out.println("Server's IP address: " + ipaddress);
 			} catch (UnknownHostException e) {
 				System.out.println("Can't set java.rmi.server.hostname.");
 			}
