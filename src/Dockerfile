@@ -18,8 +18,8 @@ RUN pwd
 RUN javac -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' *.java
 RUN rmiregistry 1099 &
 
-# Make port 80 available to the world outside this container
-EXPOSE 80
+# Make port 1099 available to the world outside this container
+EXPOSE 1099
 
 # Define environment variable
 ENV NAME World

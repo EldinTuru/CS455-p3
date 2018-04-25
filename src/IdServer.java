@@ -100,9 +100,8 @@ public class IdServer implements Service, Runnable {
             byte[] buf = new byte[1024];
             DatagramPacket recv = new DatagramPacket(buf, buf.length);
 			s.receive(recv);
-            System.out.println(new String(buf));
 
-            // Parse the second response from the coordinator, if no reply in 5 seconds this server is coordinator
+            // We must parse twice to forget about our coordinator
 			int timeout = s.getSoTimeout();
 			boolean coordinatorResponded = true;
 			buf = new byte[1024];
@@ -114,7 +113,7 @@ public class IdServer implements Service, Runnable {
 				coordinatorResponded = false;
 			}
 			s.setSoTimeout(timeout);
-            System.out.println(new String(buf));
+            System.out.println("Received list of PIDs/IPs from coordinator(lone server if empty): " + new String(buf));
             List<String> list = new ArrayList<>(Arrays.asList((new String(buf)).split(",")));
 
             // Check if this servers PID is biggest and hold an election if it is
