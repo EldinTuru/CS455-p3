@@ -61,6 +61,12 @@ public class IdServer implements Service, Runnable {
         	verboseArg = true;
         }
 		if (System.getSecurityManager() == null){
+        	try {
+				String ipaddress = Inet4Address.getLocalHost().getHostAddress();
+				System.setProperty("java.rmi.server.hostname", ipaddress);
+			} catch (UnknownHostException e) {
+				System.out.println("Can't set java.rmi.server.hostname.");
+			}
 			System.out.println("Setting System Properties....");
 			System.setProperty("javax.net.ssl.keyStore", "../resources/Server_Keystore");
 			System.setProperty("javax.net.ssl.keyStorePassword", "timmyterdal123!");
