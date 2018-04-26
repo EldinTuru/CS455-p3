@@ -37,10 +37,7 @@ public class Listener extends Thread {
                         processElectionPacket();
                         break;
                     case NEW_SERVER :
-		    	if (IdServer.isCoordinator()) {
-				System.out.println("Received new server Packet: PID=" + list.get(1) +",IP=" + list.get(2));
-				// TODO send update packet to all servers (multicast)
-			}
+		    	processNewServerPacket(list);
                         break;
                     case UPDATE_SERVER_LIST :
 
@@ -56,6 +53,13 @@ public class Listener extends Thread {
 
     public void processElectionPacket(){
 
+    }
+
+    public void processNewServerPacket(List<String> list) {
+	if (IdServer.isCoordinator()) {
+		System.out.println("Received new server packet: PID=" + list.get(1) + ",IP=" + list.get(2));
+			
+	}
     }
 
 }
