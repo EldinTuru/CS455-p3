@@ -58,7 +58,11 @@ public class Listener extends Thread {
     public void processNewServerPacket(List<String> list) {
 	if (IdServer.isCoordinator()) {
 		System.out.println("Received new server packet: PID=" + list.get(1) + ",IP=" + list.get(2));
-			
+		//IdServer.addServer(list.get(list.get(1), list.get(2)));
+		//StringWriter str = new StringWriter();
+		//str.write(Listener.NEW_SERVER + ";" + pid + ";" + ipaddress);
+		//DatagramPacket electionPacket = new DatagramPacket(str.toString().getBytes(), str.toString().length(), group, MULTICAST_PORT);
+		//s.send(electionPacket);
 	}
     }
 
