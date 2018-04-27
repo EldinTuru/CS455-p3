@@ -174,7 +174,7 @@ public class IdServer implements Service, Runnable {
 			if (coordinatorResponded) {
 				List<String> pidList = new ArrayList<>(Arrays.asList((list.get(1)).split(",")));
 				List<String> ipList = new ArrayList<>(Arrays.asList((list.get(2)).split(",")));
-				server.updateServerList(pidList, ipList);
+//				server.updateServerList(pidList, ipList);
 				// Check if this servers PID is biggest
 				for (String currPid: pidList) {
 					System.out.println("Comparing to: " + currPid);

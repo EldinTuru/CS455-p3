@@ -114,7 +114,7 @@ public class Listener extends Thread {
                 byte[] buf = new byte[1024];
                 DatagramPacket recv = new DatagramPacket(buf, buf.length);
                 socket.receive(recv);
-                System.out.println("Received Packet containing: " + new String(buf));
+                System.out.println("Received Packet containing in bully: " + new String(buf));
                 List<String> bullyPacket = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
                 if (bullyPacket.get(0).equals(BULLY)) {
                     pidList.add(parsedPacket.get(1));
@@ -129,7 +129,9 @@ public class Listener extends Thread {
         }
         boolean isBiggest = true;
         for (String currPid: pidList) {
+            System.out.print("Comparing PID: " + currPid.trim());
             if (server.comparePids(currPid.trim()) > 0) {
+                System.out.println(", it was greater than our PID of " + server.getMyPID());
                 isBiggest = false;
                 break;
             }
