@@ -1,8 +1,16 @@
+import javax.rmi.ssl.SslRMIClientSocketFactory;
+import javax.rmi.ssl.SslRMIServerSocketFactory;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.server.RMIClientSocketFactory;
+import java.rmi.server.RMIServerSocketFactory;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -18,12 +26,14 @@ public class Listener extends Thread {
     public static final String PONG = "ONG";
     public static final String BULLY = "BLY";
     private IdServer server;
+    private boolean isElectionInProcess;
 
     private MulticastSocket socket;
 
     public Listener(MulticastSocket socket, IdServer server){
         this.socket = socket;
         this.server = server;
+        this.isElectionInProcess = false;
     }
 
     @Override
@@ -62,7 +72,7 @@ public class Listener extends Thread {
                         processPongPacket();
                         break;
                     case BULLY:
-                        processBullyPacket();
+                        processBullyPacket(parsedPacket);
                         break;
                 }
 
@@ -74,14 +84,92 @@ public class Listener extends Thread {
     }
 
     private void processElectionPacket(){
-
+        isElectionInProcess = true;
+        try {
+            StringWriter str = new StringWriter();
+            str.write(Listener.BULLY + ";" + server.getMyPID() + ";" + server.getMyIP());
+            DatagramPacket bullyPacket = new DatagramPacket(
+                    str.toString().getBytes(),
+                    str.toString().length(),
+                    InetAddress.getByName(IdServer.MULTICAST_ADDRESS),
+                    IdServer.MULTICAST_PORT);
+            System.out.println("Sending Bully packet");
+            server.getSocket().send(bullyPacket);
+        } catch (IOException e) {
+            System.out.println("Error sending bully packet.");
+        }
     }
 
-    private void processBullyPacket(){
+    private void processBullyPacket(List<String> parsedPacket){
+        ArrayList<String> pidList = new ArrayList<>();
+        ArrayList<String> ipList = new ArrayList<>();
+        pidList.add(parsedPacket.get(1));
+        ipList.add(parsedPacket.get(2));
 
+        // Receive bully packets until we timeout or get a non bully packet
+        try {
+            int timeout = server.getSocket().getSoTimeout();
+            server.getSocket().setSoTimeout(4000);
+            while (true) {
+                byte[] buf = new byte[1024];
+                DatagramPacket recv = new DatagramPacket(buf, buf.length);
+                socket.receive(recv);
+                System.out.println("Received Packet containing: " + new String(buf));
+                List<String> bullyPacket = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
+                if (bullyPacket.get(0).equals(BULLY)) {
+                    pidList.add(parsedPacket.get(1));
+                    ipList.add(parsedPacket.get(2));
+                }
+                else
+                    break;
+            }
+            server.getSocket().setSoTimeout(timeout);
+        }catch (Exception e) {
+            System.out.println("Stopped bully algorithm.");
+        }
+        boolean isBiggest = true;
+        for (String currPid: pidList) {
+            if (server.comparePids(currPid.trim()) > 0) {
+                isBiggest = false;
+                break;
+            }
+        }
+        try {
+            if (isBiggest) {
+                StringWriter str = new StringWriter();
+                str.write(Listener.IM_THE_COORDINATOR + ";" + server.getMyPID());
+                DatagramPacket coordPacket = new DatagramPacket(
+                        str.toString().getBytes(), str.toString().length(),
+                        InetAddress.getByName(IdServer.MULTICAST_ADDRESS),
+                        IdServer.MULTICAST_PORT);
+                server.getSocket().send(coordPacket);
+                server.setCoordinator(true);
+                System.out.println("I AM THE COORDINATOR");
+                String name = "//localhost:" + server.getPort() + "/Service";
+                RMIClientSocketFactory rmiClientSocketFactory = new SslRMIClientSocketFactory();
+                RMIServerSocketFactory rmiServerSocketFactory = new SslRMIServerSocketFactory();
+                Service stub;
+                if (server.getStub() != null)
+                    stub = server.getStub();
+                else
+                    stub = (Service) UnicastRemoteObject.exportObject((Service) server, 0, rmiClientSocketFactory, rmiServerSocketFactory);
+                Registry registry = LocateRegistry.getRegistry(server.getPort());
+                registry.rebind(name, stub);
+                System.out.println("IdServer is bound!");
+            }
+        } catch (RemoteException e) {
+            System.out.println("Error setting up local registry.");
+            e.printStackTrace();
+        }catch (IOException e) {
+            System.out.println("Error sending i am coordinator.");
+            e.printStackTrace();
+        }
+        isElectionInProcess = false;
     }
 
     private void processPingPacket(){
+        if (isElectionInProcess)
+            return;
         System.out.println("Processing ping packet while coordinator is: " + server.isCoordinator());
         if (server.isCoordinator()) {
             String packet = Listener.PONG;

@@ -29,6 +29,8 @@ public class IdServer implements Service, Runnable {
     private MulticastSocket socket;
     private int timeElapsed;
     private boolean waitingOnReply;
+    private int port;
+    private Service stub;
 
 	@SuppressWarnings("unchecked")
    	public IdServer(boolean verbose) {
@@ -36,6 +38,7 @@ public class IdServer implements Service, Runnable {
 		this.socket = null;
 		this.timeElapsed = 0;
 		this.waitingOnReply = false;
+		this.stub = null;
 	    File f = new File("users_table.ser");
 	    if(f.exists()) {
 			try {
@@ -69,6 +72,7 @@ public class IdServer implements Service, Runnable {
         }
 		// Spin up server
 		IdServer server = new IdServer(verboseArg);
+        server.setPort(Integer.parseInt(port));
 
 		if (System.getSecurityManager() == null){
         	try {
@@ -208,6 +212,7 @@ public class IdServer implements Service, Runnable {
                 RMIClientSocketFactory rmiClientSocketFactory = new SslRMIClientSocketFactory();
                 RMIServerSocketFactory rmiServerSocketFactory = new SslRMIServerSocketFactory();
                 Service stub = (Service) UnicastRemoteObject.exportObject((Service) server, 0, rmiClientSocketFactory, rmiServerSocketFactory);
+                server.setStub(stub);
                 Registry registry = LocateRegistry.getRegistry(Integer.parseInt(port));
                 registry.rebind(name, stub);
                 System.out.println("IdServer is bound!");
@@ -243,10 +248,6 @@ public class IdServer implements Service, Runnable {
 			}
 		}
 	}
-
-	// TODO make a listener for the multicast port to see if an election is being held
-
-    // TODO make a thread for pinging coordinator every 10 seconds
 
         /**
          * Create a user and save them in the database
@@ -552,4 +553,20 @@ public class IdServer implements Service, Runnable {
     public void setWaitingOnReply(boolean waitingOnReply) {
         this.waitingOnReply = waitingOnReply;
     }
+
+	public int getPort() {
+		return port;
+	}
+
+	public void setPort(int port) {
+		this.port = port;
+	}
+
+	public Service getStub() {
+		return stub;
+	}
+
+	public void setStub(Service stub) {
+		this.stub = stub;
+	}
 }

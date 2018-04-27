@@ -1,9 +1,6 @@
 import java.io.IOException;
 import java.io.StringWriter;
-import java.net.DatagramPacket;
-import java.net.InetAddress;
-import java.net.MulticastSocket;
-import java.net.SocketTimeoutException;
+import java.net.*;
 
 
 public class Ping extends Thread {
@@ -37,7 +34,20 @@ public class Ping extends Thread {
                     // Hold Election
                     System.out.println("COORDINATOR IS DOWN!");
                     System.out.println("!server.isCoordinator() && server.getTimeElapsed() > 10 && !server.isWaitingOnReply()");
-                    Thread.sleep(3000);
+                    try {
+                        StringWriter str = new StringWriter();
+                        str.write(Listener.ELECTION + ";");
+                        DatagramPacket pingPacket = new DatagramPacket(
+                                str.toString().getBytes(),
+                                str.toString().length(),
+                                InetAddress.getByName(IdServer.MULTICAST_ADDRESS),
+                                IdServer.MULTICAST_PORT);
+                        System.out.println("Starting new election!");
+                        server.getSocket().send(pingPacket);
+                        Thread.sleep(10000);
+                    } catch (IOException a) {
+                        System.out.println("Error");
+                    }
                 } else {
                     server.setTimeElapsed(server.getTimeElapsed() + 1);
                     Thread.sleep(1000);
@@ -46,6 +56,19 @@ public class Ping extends Thread {
         } catch (SocketTimeoutException e) {
             System.out.println("Coordinator response timed out!");
             // HOLD ELECTION
+            try {
+                StringWriter str = new StringWriter();
+                str.write(Listener.ELECTION + ";");
+                DatagramPacket pingPacket = new DatagramPacket(
+                        str.toString().getBytes(),
+                        str.toString().length(),
+                        InetAddress.getByName(IdServer.MULTICAST_ADDRESS),
+                        IdServer.MULTICAST_PORT);
+                System.out.println("Starting new election.");
+                server.getSocket().send(pingPacket);
+            } catch (IOException a) {
+                System.out.println("Error");
+            }
         } catch(IOException | InterruptedException v){
             System.out.println(v);
         }
