@@ -269,6 +269,7 @@ public class IdServer implements Service, Runnable {
 		printVerbose("Creating the new user...");
 		User u = new User(UUID.randomUUID(), ip, dateFormat.format(date), realname, password);
 		users.put(loginname, u);
+		sendUpdateDBPacket();
 		return "You have created a login. UUID for the account is: " + u.getUuid().toString();
 	}
 

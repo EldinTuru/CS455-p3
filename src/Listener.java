@@ -250,6 +250,18 @@ public class Listener extends Thread {
     }
 
     private void processUpdateDBPacket(List<String> parsedPacket){
-        //System.out.println(parsedPacket.get(1));
+	 buf = new byte[65506];
+                                        recv = new DatagramPacket(buf, buf.length);
+                                        try {
+                                                server.getSocket().receive(recv);
+                                                List<String> json = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
+                                                server.parseJson(json.get(1));
+                                                server.saveDB();
+                                        } catch (SocketTimeoutException e) {
+                                                System.out.println("Coordinator response timed out!");
+                                                coordinatorResponded = false;
+                                                break;
+                                        }
+    
     }
 }
