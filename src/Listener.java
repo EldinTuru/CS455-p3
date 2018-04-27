@@ -236,7 +236,7 @@ public class Listener extends Thread {
     private void processUpdateServerListPacket(List<String> parsedPacket){
         List<String> pidList = new ArrayList<>(Arrays.asList((parsedPacket.get(1)).split(",")));
         List<String> ipList = new ArrayList<>(Arrays.asList((parsedPacket.get(2)).split(",")));
-        server.updateServerList(pidList, ipList);
+//        server.updateServerList(pidList, ipList);
     }
 
     private void processImTheCoordinator(List<String> parsedPacket){
