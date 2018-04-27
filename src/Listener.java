@@ -117,8 +117,8 @@ public class Listener extends Thread {
                 System.out.println("Received Packet containing in bully: " + new String(buf));
                 List<String> bullyPacket = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
                 if (bullyPacket.get(0).equals(BULLY)) {
-                    pidList.add(parsedPacket.get(1));
-                    ipList.add(parsedPacket.get(2));
+                    pidList.add(bullyPacket.get(1));
+                    ipList.add(bullyPacket.get(2));
                 }
                 else
                     break;
