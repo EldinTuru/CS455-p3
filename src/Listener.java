@@ -168,6 +168,7 @@ public class Listener extends Thread {
     }
 
     private void processPingPacket(){
+        System.out.println("Processing Ping Packet");
         if (isElectionInProcess)
             return;
         System.out.println("Processing ping packet while coordinator is: " + server.isCoordinator());
@@ -250,16 +251,9 @@ public class Listener extends Thread {
     }
 
     private void processUpdateDBPacket(List<String> parsedPacket){
-        byte[] buf = new byte[65506];
-        DatagramPacket recv = new DatagramPacket(buf, buf.length);
-        try {
-                server.getSocket().receive(recv);
-                List<String> json = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
-                server.parseJson(json.get(1));
-                server.saveDB();
-        } catch (IOException e) {
-                System.out.println("Failed receiving packet!");
+        if (!server.isCoordinator()) {
+                server.parseJson(parsedPacket.get(1));
+                System.out.println("Database Updated!");
         }
-    
     }
 }
