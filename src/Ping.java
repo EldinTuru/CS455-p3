@@ -2,7 +2,11 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.net.*;
 
-
+/**
+ * This is used to ping the coordinator every 10 seconds
+ * to make sure the coordinator is alive, when the coordinator
+ * doesnt respond, this will start an election
+ */
 public class Ping extends Thread {
     private IdServer server;
 

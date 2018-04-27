@@ -15,7 +15,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-
+/**
+ * Class that handles receiving and processing packets
+ */
 public class Listener extends Thread {
     public static final String ELECTION = "ELE";
     public static final String NEW_SERVER = "NWS";
@@ -83,6 +85,9 @@ public class Listener extends Thread {
 
     }
 
+    /**
+     * Process election packet. Sends out BULLY packet
+     */
     private void processElectionPacket(){
         isElectionInProcess = true;
         try {
@@ -100,6 +105,12 @@ public class Listener extends Thread {
         }
     }
 
+    /**
+     * This will proccess the bully packet. Will receive all bully packets
+     * then loop through the bully packet pids' and determine if its the
+     * coordinator
+     * @param parsedPacket
+     */
     private void processBullyPacket(List<String> parsedPacket){
         ArrayList<String> pidList = new ArrayList<>();
         ArrayList<String> ipList = new ArrayList<>();
@@ -169,6 +180,10 @@ public class Listener extends Thread {
         isElectionInProcess = false;
     }
 
+    /**
+     * This will process the ping packet and then send out
+     * a pong packet
+     */
     private void processPingPacket(){
         System.out.println("Processing Ping Packet");
         if (isElectionInProcess)
@@ -192,6 +207,9 @@ public class Listener extends Thread {
         }
     }
 
+    /**
+     * This will process the pong packet and then reset the ping for itself
+     */
     private void processPongPacket(){
         if (!server.isCoordinator()) {
             server.setTimeElapsed(0);
@@ -199,6 +217,11 @@ public class Listener extends Thread {
         }
     }
 
+    /**
+     * The coordinator will process this packet and then send out an update server list
+     * to all other servers
+     * @param parsedPacket
+     */
     private void processNewServerPacket(List<String> parsedPacket) {
         if (server.isCoordinator()) {
             System.out.println("Received new server packet: PID=" + parsedPacket.get(1) + ",IP=" + parsedPacket.get(2));
@@ -235,12 +258,22 @@ public class Listener extends Thread {
         }
     }
 
+    /**
+     * Updates the server list - no need for it right now,
+     * currently not being used
+     * @param parsedPacket
+     */
     private void processUpdateServerListPacket(List<String> parsedPacket){
         List<String> pidList = new ArrayList<>(Arrays.asList((parsedPacket.get(1)).split(",")));
         List<String> ipList = new ArrayList<>(Arrays.asList((parsedPacket.get(2)).split(",")));
 //        server.updateServerList(pidList, ipList);
     }
 
+    /**
+     * Process the IM_THE_COORDINATOR packet. Will set the coordinator to false
+     * for the server
+     * @param parsedPacket
+     */
     private void processImTheCoordinator(List<String> parsedPacket){
         if (server.comparePids(parsedPacket.get(1)) != 0) {
             server.setCoordinator(false);
@@ -252,6 +285,11 @@ public class Listener extends Thread {
         }
     }
 
+    /**
+     * Process the update db packet. Calls parse json on the packet
+     * so that the new db is saved
+     * @param parsedPacket
+     */
     private void processUpdateDBPacket(List<String> parsedPacket){
         if (!server.isCoordinator()) {
                 server.parseJson(parsedPacket.get(1));

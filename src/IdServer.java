@@ -403,6 +403,11 @@ public class IdServer implements Service, Runnable {
             }
 	}
 
+	/**
+	 * This will send an update db packet
+	 * This is so that the others servers on the multicast know to
+	 * update their local database
+	 */
 	public void sendUpdateDBPacket() {
 		String packet = Listener.UPDATE_DB + ";" + getJSON();
 		StringWriter str = new StringWriter(packet.length());
@@ -421,6 +426,10 @@ public class IdServer implements Service, Runnable {
 		}
 	}
 
+	/**
+	 * This will serialize the users_table and write the
+	 * object to a file
+	 */
 	public void saveDB() {
 		try {
 			FileOutputStream fos = new FileOutputStream("users_table.ser");
@@ -434,6 +443,12 @@ public class IdServer implements Service, Runnable {
 		}
 	}
 
+	/**
+	 * Updates the server list
+	 *
+	 * @param pids - list of pids
+	 * @param ips - list of ips
+	 */
     public void updateServerList(List<String> pids, List<String> ips) {
 		serverList = new HashMap<>();
         for (int i = 0; i < pids.size(); i++) {
@@ -441,22 +456,43 @@ public class IdServer implements Service, Runnable {
 		}
     }
 
-    public HashMap<String, String> getServerList() {
+	/**
+	 * Returns the server list, pids -> ips
+	 * @return serverList
+	 */
+	public HashMap<String, String> getServerList() {
         return serverList;
     }
 
-    public void addServer(String pid, String ipaddress) {
+	/**
+	 * Adds the new server to the list
+	 * @param pid - pid
+	 * @param ipaddress - ipaddress
+	 */
+	public void addServer(String pid, String ipaddress) {
         serverList.put(pid.trim(), ipaddress.trim());
     }
 
-    public void removeServer(String pid) {
+	/**
+	 * Removes the server from the list
+	 * @param pid - pid we are adding
+	 */
+	public void removeServer(String pid) {
         serverList.remove(pid);
     }
 
-    public void setMyPID(String pid) {
+	/**
+	 * Setting the servers pid
+	 * @param pid - the new pid
+	 */
+	public void setMyPID(String pid) {
 		myPID = pid;
 	}
 
+	/**
+	 * Getting the servers pid
+	 * @return servers pid
+	 */
     public String getMyPID() {
 		return myPID.trim();
 	}
@@ -473,42 +509,81 @@ public class IdServer implements Service, Runnable {
 		return Integer.compare(Integer.parseInt(currPid.trim()), Integer.parseInt(getMyPID()));
 	}
 
+	/**
+	 * Returns the server ip address
+	 * @return ip
+	 */
 	public String getMyIP() {
 		return myIP;
 	}
 
+	/**
+	 * Sets the servers ip address
+	 * @param myIP - set pids
+	 */
 	public void setMyIP(String myIP) {
 		this.myIP = myIP;
 	}
 
-
+	/**
+	 * Returns bool indicating if the server is a coordinator or not
+	 * @return isCoordinator
+	 */
 	public boolean isCoordinator() {
         return isCoordinator;
     }
 
-    public void setCoordinator(boolean coordinator) {
+	/**
+	 * Sets the coordinator
+	 * @param coordinator - bool
+	 */
+	public void setCoordinator(boolean coordinator) {
         isCoordinator = coordinator;
     }
 
-    public void startSaveStateThread() {
+	/**
+	 * This starts the thread to save the state to disk
+	 */
+	public void startSaveStateThread() {
 		new Thread(this).start();//starting thread to save info every 10 seconds
 	}
+
+	/**
+	 * Returns the users
+	 * @return users
+	 */
 	public HashMap<String, User> getUsers() {
 		return this.users;
 	}
 
+	/**
+	 * Sets the users
+	 * @param users - the users
+	 */
 	public void setUsers(HashMap<String, User> users) {
 		this.users = users;
 	}
 
+	/**
+	 * Returns the mutlicast socket
+	 * @return socket
+	 */
 	public MulticastSocket getSocket() {
 		return socket;
 	}
 
+	/**
+	 * Sets the socket
+	 * @param socket - multicast socket
+	 */
 	public void setSocket(MulticastSocket socket) {
 		this.socket = socket;
 	}
 
+	/**
+	 * Gets the JSOn for the users db table
+	 * @return json string of the users table
+	 */
 	public String getJSON(){
     	String json = "";
     	for(String loginName : getUsers().keySet()){
@@ -519,6 +594,11 @@ public class IdServer implements Service, Runnable {
 		return json;
 	}
 
+	/**
+	 * Parses the json of the users table and sets
+	 * the users table to it
+	 * @param json - stringified users table
+	 */
 	public void parseJson(String json){
 		List<String> users = new ArrayList<>(Arrays.asList(json.split(",,")));
 		System.out.println("users size" + users.size());
