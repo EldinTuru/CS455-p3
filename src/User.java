@@ -5,7 +5,7 @@ import java.util.UUID;
 public class User implements Serializable
 {
     private UUID uuid;
-    private InetAddress IPAddress;
+    private String IPAddress;
     private String createdDate;
     private String realName;
     private byte[] password;
@@ -13,7 +13,15 @@ public class User implements Serializable
 
     public User(UUID uuid, InetAddress IPAddress, String createdDate, String realName, byte[] password){
         this.uuid = uuid;
-        this.IPAddress = IPAddress;
+        this.IPAddress = IPAddress.toString();
+        this.createdDate = createdDate;
+        this.realName = realName;
+        this.password = password;
+    }
+
+    public User(UUID uuid, String IPAddress, String createdDate, String realName, byte[] password){
+        this.uuid = uuid;
+        this.IPAddress = IPAddress.toString();
         this.createdDate = createdDate;
         this.realName = realName;
         this.password = password;
@@ -24,7 +32,7 @@ public class User implements Serializable
     }
 
     public void setIPAddress(InetAddress IPAddress) {
-        this.IPAddress = IPAddress;
+        this.IPAddress = IPAddress.toString();
     }
 
     public void setCreatedDate(String createdDate) {
@@ -43,7 +51,7 @@ public class User implements Serializable
         return uuid;
     }
 
-    public InetAddress getIPAddress() {
+    public String getIPAddress() {
         return IPAddress;
     }
 
@@ -62,5 +70,10 @@ public class User implements Serializable
     public String toString()
     {
         return "UUID: " + getUuid() + "\nIP: " + getIPAddress() + "\ncreated date: " + getCreatedDate() + "\nrealname " + getRealName();
+    }
+
+    public String getJSON()
+    {
+        return getUuid().toString()+"##"+getIPAddress()+"##"+getCreatedDate()+"##"+getRealName()+"##"+new String(getPassword());
     }
 }

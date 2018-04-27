@@ -17,18 +17,23 @@ import java.util.*;
 
 /**
  * @author edin, eldin
- *
+ * Calculation for passing grade: (10 * 82 / 120) + (70 * (277 + (Enter score for p3 here)) / 440) + (5) + (10)
  */
 public class IdServer implements Service, Runnable {
     private HashMap<String, User> users;
     private boolean verbose;
-    private static boolean isCoordinator = false;
-    private static final String MULTICAST_ADDRESS = "230.230.250.230";
-    private static final int MULTICAST_PORT = 5199;
+    private boolean isCoordinator;
+    private String myPID;
+	private String myIP;
+    public static final String MULTICAST_ADDRESS = "230.230.250.230";
+    public static final int MULTICAST_PORT = 5199;
+    private HashMap<String, String> serverList = new HashMap<>();
+    private MulticastSocket socket;
 
 	@SuppressWarnings("unchecked")
    	public IdServer(boolean verbose) {
-            this.verbose = verbose;
+		this.verbose = verbose;
+		this.socket = null;
 	    File f = new File("users_table.ser");
 	    if(f.exists()) {
 			try {
@@ -45,9 +50,10 @@ public class IdServer implements Service, Runnable {
 		} else {
 	    	users = new HashMap<>();
 		}
-		new Thread(this).start();//starting thread to save info every 10 seconds
+		//startSaveStateThread();
 	}
 
+	@SuppressWarnings("unchecked")
 	public static void main(String[] args) {
 		String port = "1099";
         boolean verboseArg = false;
@@ -60,12 +66,14 @@ public class IdServer implements Service, Runnable {
         } else if (args.length == 1 && (args[0].equals("--verbose") || args[0].equals("-v"))) {
         	verboseArg = true;
         }
-        String ipaddress = "";
+		// Spin up server
+		IdServer server = new IdServer(verboseArg);
+
 		if (System.getSecurityManager() == null){
         	try {
-				ipaddress = Inet4Address.getLocalHost().getHostAddress();
-				System.setProperty("java.rmi.server.hostname", ipaddress);
-				System.out.println("Server's IP address: " + ipaddress);
+				server.setMyIP(Inet4Address.getLocalHost().getHostAddress());
+				System.setProperty("java.rmi.server.hostname", server.getMyIP());
+				System.out.println("Server's IP address: " + server.getMyIP());
 			} catch (UnknownHostException e) {
 				System.out.println("Can't set java.rmi.server.hostname.");
 			}
@@ -75,15 +83,12 @@ public class IdServer implements Service, Runnable {
 			System.setProperty("java.security.policy", "security.policy");
 			System.setSecurityManager(new SecurityManager());
 		}
-		// Spin up server
-        Service server = new IdServer(verboseArg);
 
         // Join multicast group
-		MulticastSocket s = null;
         InetAddress group = null;
 		try {
             group = InetAddress.getByName(MULTICAST_ADDRESS);
-            s = new MulticastSocket(MULTICAST_PORT);
+            server.setSocket(new MulticastSocket(MULTICAST_PORT));
 			Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
 			while (networkInterfaces.hasMoreElements())
 			{
@@ -92,8 +97,8 @@ public class IdServer implements Service, Runnable {
 					System.out.println("Attempting to connect to: " + networkInterface.getName());
                     try {
                         NetworkInterface net = NetworkInterface.getByName(networkInterface.getName());
-                        s.setNetworkInterface(net);
-                        s.joinGroup(group);
+                        server.getSocket().setNetworkInterface(net);
+                        server.getSocket().joinGroup(group);
                         break;
                     } catch (IOException e) {
                         System.err.println("Failed joining multicast group: " + e.getMessage());
@@ -101,78 +106,106 @@ public class IdServer implements Service, Runnable {
 				}
 			}
         } catch (IOException e) {
-            System.err.println("Failed joining multicast group: " + e.getMessage());
+            System.err.println("Failed joining multicast group, shutting down: " + e.getMessage());
+            System.exit(1);
         }
 
         // Connect to multicast group
         try {
 		    // Get the PID of this process
-            String pid = ManagementFactory.getRuntimeMXBean().getName();
-            pid = pid.substring(0, pid.indexOf('@'));
-            System.out.println("This servers pid is " + pid);
+            String tempPid = ManagementFactory.getRuntimeMXBean().getName();
+			server.setMyPID(tempPid.substring(0, tempPid.indexOf('@')));
+            System.out.println("This servers pid is " + server.getMyPID());
             StringWriter str = new StringWriter();
-            str.write(Listener.NEW_SERVER + ";" + pid + ";" + ipaddress);
+            str.write(Listener.NEW_SERVER + ";" + server.getMyPID() + ";" + server.getMyIP());
             DatagramPacket electionPacket = new DatagramPacket(str.toString().getBytes(), str.toString().length(), group,
                     MULTICAST_PORT);
-            // Send PID to everyone in the group
-            s.send(electionPacket);
+            // Send new server information to everyone in the group
+            server.getSocket().send(electionPacket);
 
-            // Receive the PID list back from coordinator
-            byte[] buf = new byte[1024];
-            DatagramPacket recv = new DatagramPacket(buf, buf.length);
-			s.receive(recv);
-
-            // We must parse twice to forget about our coordinator
-			int timeout = s.getSoTimeout();
+            // Receive the PID list back from coordinator, if no coordinator, hold election.
+			// Ignore all other packets besides update server list packet
+			int timeout = server.getSocket().getSoTimeout();
 			boolean coordinatorResponded = true;
-			buf = new byte[1024];
-			recv = new DatagramPacket(buf, buf.length);
-			s.setSoTimeout(4000);
-			try {
-				s.receive(recv);
-			} catch (SocketTimeoutException e) {
-				coordinatorResponded = false;
-			}
-			s.setSoTimeout(timeout);
-            System.out.println("Received list of PIDs/IPs from coordinator(lone server if empty): " + new String(buf));
-            List<String> list = new ArrayList<>(Arrays.asList((new String(buf)).split(",")));
-
-            // Check if this servers PID is biggest and hold an election if it is
-            boolean isBiggest = true;
-            for (String currPid: list) {
-            	if (!coordinatorResponded) {
-            		break;
+			byte[] buf;
+			DatagramPacket recv;
+			List<String> list = new ArrayList<>();
+			server.getSocket().setSoTimeout(4000);
+			boolean isBiggest = true;
+			while (true) {
+				buf = new byte[1024];
+				recv = new DatagramPacket(buf, buf.length);
+				try {
+					server.getSocket().receive(recv);
+				} catch (SocketTimeoutException e) {
+					System.out.println("Coordinator response timed out!");
+					coordinatorResponded = false;
+					break;
 				}
-                if (Integer.parseInt(currPid.trim()) > Integer.parseInt(pid)) {
-                    isBiggest = false;
-                    break;
-                }
-            }
-            // If this server is the biggest send a multicast packet to everyone in the group
+				list = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
+				if (list.get(0).equals(Listener.UPDATE_SERVER_LIST)) {
+					// Finally got update server list packet, break out of listening loop
+					System.out.println("Received list of PIDs/IPs from coordinator(lone server if empty): " + new String(buf));
+					// Now we have know there is a coordinator, get an updated Database
+
+					buf = new byte[65535];
+					recv = new DatagramPacket(buf, buf.length);
+					try {
+						server.getSocket().receive(recv);
+						List<String> json = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
+						server.parseJson(json.get(1));
+						server.saveDB();
+					} catch (SocketTimeoutException e) {
+						System.out.println("Coordinator response timed out!");
+						coordinatorResponded = false;
+						break;
+					}
+
+					break;
+				}
+			}
+			server.getSocket().setSoTimeout(timeout);
+			// Add the servers we received to our server list
+			if (coordinatorResponded) {
+				List<String> pidList = new ArrayList<>(Arrays.asList((list.get(1)).split(",")));
+				List<String> ipList = new ArrayList<>(Arrays.asList((list.get(2)).split(",")));
+				server.updateServerList(pidList, ipList);
+				// Check if this servers PID is biggest
+				for (String currPid: pidList) {
+					System.out.println("Comparing to: " + currPid);
+					if (Integer.parseInt(currPid.trim()) > Integer.parseInt(server.getMyPID())) {
+						isBiggest = false;
+						break;
+					}
+				}
+			}
+			server.addServer(server.getMyPID(), server.getMyIP());
+
+            // If this server is the biggest send a multicast packet to everyone in the group saying we are coordinator
             if (isBiggest) {
                 str = new StringWriter();
-                str.write("OK");
+                str.write(Listener.IM_THE_COORDINATOR + ";" + server.getMyPID());
                 electionPacket = new DatagramPacket(str.toString().getBytes(), str.toString().length(), group,
                         MULTICAST_PORT);
-                s.send(electionPacket);
-                IdServer.setCoordinator(true);
+                server.getSocket().send(electionPacket);
+                server.setCoordinator(true);
                 System.out.println("I AM THE COORDINATOR");
             }
         } catch (IOException | NullPointerException e) {
 		    System.err.println("Failed while attempting to send/receive multicast packet: " + e.getMessage());
         }
 
-        Listener listener = new Listener(s);
+        Listener listener = new Listener(server.getSocket(), server);
 		listener.start();
 
 		try {
-		    if (IdServer.isCoordinator()) {
+		    if (server.isCoordinator()) {
                 // name to register in RMIRegistry
                 String name = "//localhost:" + port + "/Service";
                 RMIClientSocketFactory rmiClientSocketFactory = new SslRMIClientSocketFactory();
                 RMIServerSocketFactory rmiServerSocketFactory = new SslRMIServerSocketFactory();
-                Service stub = (Service) UnicastRemoteObject.exportObject(server, 0, rmiClientSocketFactory, rmiServerSocketFactory);
-                Registry registry = LocateRegistry.createRegistry(Integer.parseInt(port));
+                Service stub = (Service) UnicastRemoteObject.exportObject((Service) server, 0, rmiClientSocketFactory, rmiServerSocketFactory);
+                Registry registry = LocateRegistry.getRegistry(Integer.parseInt(port));
                 registry.rebind(name, stub);
                 System.out.println("IdServer is bound!");
             }
@@ -193,30 +226,15 @@ public class IdServer implements Service, Runnable {
 			@Override
 			public void run()
 			{
-				try {
-					FileOutputStream fos = new FileOutputStream("users_table.ser");
-					ObjectOutputStream oos = new ObjectOutputStream(fos);
-					oos.writeObject(users);
-					oos.close();
-					fos.close();
-					printVerbose("Serialized HashMap data is saved in users_table.ser");
-				} catch (IOException e){
-					System.out.println(e);
-				}
+				saveDB();
+				printVerbose("Serialized HashMap data is saved in users_table.ser");
 			}
 		});
 
-   		while(true){
+   		while(isCoordinator()){
    		    try {
-   		    	FileOutputStream fos = new FileOutputStream("users_table.ser");
-				ObjectOutputStream oos = new ObjectOutputStream(fos);
-				oos.writeObject(users);
-				oos.close();
-				fos.close();
-				printVerbose("Serialized HashMap data is saved in users_table.ser");
+				saveDB();
 				Thread.sleep(10000);
-			} catch (IOException e){
-   		    	System.out.println(e);
 			} catch (InterruptedException e){
 				System.out.println(e);
 			}
@@ -237,14 +255,14 @@ public class IdServer implements Service, Runnable {
          */
 	public synchronized String createLogin(String loginname, String realname, byte[] password, InetAddress ip) throws RemoteException {
 		printVerbose("Checking if login name " + loginname + " is already taken...");
-                if(users.containsKey(loginname)){
+		if(users.containsKey(loginname)){
 			return "This loginname is already taken";
 		}
 
 		DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
 		Date date = new Date();
 
-                printVerbose("Creating the new user...");
+		printVerbose("Creating the new user...");
 		User u = new User(UUID.randomUUID(), ip, dateFormat.format(date), realname, password);
 		users.put(loginname, u);
 		return "You have created a login. UUID for the account is: " + u.getUuid().toString();
@@ -256,7 +274,7 @@ public class IdServer implements Service, Runnable {
          * @param loginname - name of the user to get information for
          */
 	public synchronized String lookup(String loginname) throws RemoteException {
-                printVerbose("Checking if user " + loginname + " exists...");
+		printVerbose("Checking if user " + loginname + " exists...");
 		if(users.containsKey(loginname)){
 			return "Information found for account: " + loginname + "\n" + users.get(loginname).toString();
 		} else {
@@ -270,7 +288,7 @@ public class IdServer implements Service, Runnable {
          * @param uuid - uuid of the user to get information for
          */
 	public synchronized String reverseLookup(UUID uuid) throws RemoteException {
-                printVerbose("Looking for user with UUID: " + uuid + "...");
+		printVerbose("Looking for user with UUID: " + uuid + "...");
 		for (Map.Entry<String, User> entry : users.entrySet()) {
 			String loginname = entry.getKey();
 			User user = entry.getValue();
@@ -290,20 +308,20 @@ public class IdServer implements Service, Runnable {
          */ 
 	public synchronized String modify(String oldname, String newname, byte[] password) throws RemoteException
 	{
-                printVerbose("Checking if " + oldname + " is a valid user...");
+		printVerbose("Checking if " + oldname + " is a valid user...");
 		if(!users.containsKey(oldname)){
 			return oldname + " can not be found";
 		}
 
-                printVerbose("Checking if " + newname + " is taken...");
+		printVerbose("Checking if " + newname + " is taken...");
 		if(users.containsKey(newname)){
 			return newname + " is already taken";
 		}
 
 		User u = users.get(oldname);
-                printVerbose("Checking password...");
+		printVerbose("Checking password...");
 		if(Arrays.equals(password, u.getPassword())){
-                        printVerbose("Changing names...");
+			printVerbose("Changing names...");
 			users.remove(oldname);
 			users.put(newname, u);
 			return "Successfully changed name " + oldname + " to " + newname;
@@ -322,7 +340,7 @@ public class IdServer implements Service, Runnable {
 	{
 	    if(users.containsKey(loginname)){
 	    	if(Arrays.equals(password, users.get(loginname).getPassword())){
-                        printVerbose("Removing user " + loginname +  "...");
+				printVerbose("Removing user " + loginname +  "...");
 	    		users.remove(loginname);
 	    		return "Successfully deleted " + loginname;
 			} else {
@@ -341,7 +359,7 @@ public class IdServer implements Service, Runnable {
 	{
 	    if(item.equals("users")){
 	    	String list = "";
-                        printVerbose("Getting users...");
+            printVerbose("Getting users...");
 			for (Map.Entry<String, User> entry : users.entrySet()) {
 				list += entry.getKey() + "\n";
 			}
@@ -350,7 +368,7 @@ public class IdServer implements Service, Runnable {
 
 		if(item.equals("uuids")){
 			String list = "";
-                        printVerbose("Getting UUIDs...");
+			printVerbose("Getting UUIDs...");
 			for (Map.Entry<String, User> entry : users.entrySet()) {
 				list += entry.getValue().getUuid().toString() + "\n";
 			}
@@ -359,7 +377,7 @@ public class IdServer implements Service, Runnable {
 
 		if(item.equals("all")){
 			String list = "";
-                        printVerbose("Getting all information about users...");
+			printVerbose("Getting all information about users...");
 			for (Map.Entry<String, User> entry : users.entrySet()) {
 				list += "User: " + entry.getKey() + "\n" + entry.getValue().toString() + "\n";
 			}
@@ -380,12 +398,134 @@ public class IdServer implements Service, Runnable {
             }
 	}
 
-    public static boolean isCoordinator() {
+	public void sendUpdateDBPacket() {
+		String packet = Listener.UPDATE_DB + ";" + getJSON();
+		StringWriter str = new StringWriter(packet.length());
+		str.write(packet, 0, packet.length());
+		try {
+			DatagramPacket electionPacket = new DatagramPacket(
+					str.toString().getBytes(),
+					str.toString().length(),
+					InetAddress.getByName(IdServer.MULTICAST_ADDRESS),
+					IdServer.MULTICAST_PORT);
+			socket.send(electionPacket);
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+		}
+	}
+
+	private void saveDB() {
+		try {
+			FileOutputStream fos = new FileOutputStream("users_table.ser");
+			ObjectOutputStream oos = new ObjectOutputStream(fos);
+			oos.writeObject(users);
+			oos.close();
+			fos.close();
+			printVerbose("Serialized HashMap data is saved in users_table.ser");
+		} catch (IOException e){
+			System.out.println(e.getMessage());
+		}
+	}
+
+    public void updateServerList(List<String> pids, List<String> ips) {
+		serverList = new HashMap<>();
+        for (int i = 0; i < pids.size(); i++) {
+        	serverList.put(pids.get(i), ips.get(i));
+		}
+    }
+
+    public HashMap<String, String> getServerList() {
+        return serverList;
+    }
+
+    public void addServer(String pid, String ipaddress) {
+        serverList.put(pid.trim(), ipaddress.trim());
+    }
+
+    public void removeServer(String pid) {
+        serverList.remove(pid);
+    }
+
+    public void setMyPID(String pid) {
+		myPID = pid;
+	}
+
+    public String getMyPID() {
+		return myPID.trim();
+	}
+
+	/**
+	 * If currPid < myPid, return -1
+	 * If currPid = myPid, return 0
+	 * If currPid > myPid, return 1
+	 *
+	 * @param currPid The id to compare to our ID
+	 * @return 1, 0, -1
+	 */
+    public int comparePids(String currPid) {
+		return Integer.compare(Integer.parseInt(currPid.trim()), Integer.parseInt(getMyPID()));
+	}
+
+	public String getMyIP() {
+		return myIP;
+	}
+
+	public void setMyIP(String myIP) {
+		this.myIP = myIP;
+	}
+
+
+	public boolean isCoordinator() {
         return isCoordinator;
     }
 
-    public static void setCoordinator(boolean coordinator) {
+    public void setCoordinator(boolean coordinator) {
         isCoordinator = coordinator;
     }
 
+    public void startSaveStateThread() {
+		new Thread(this).start();//starting thread to save info every 10 seconds
+	}
+	public HashMap<String, User> getUsers() {
+		return this.users;
+	}
+
+	public void setUsers(HashMap<String, User> users) {
+		this.users = users;
+	}
+
+	public MulticastSocket getSocket() {
+		return socket;
+	}
+
+	public void setSocket(MulticastSocket socket) {
+		this.socket = socket;
+	}
+
+	public String getJSON(){
+    	String json = "";
+    	System.out.println(getUsers().get("eldin"));
+    	for(String loginName : getUsers().keySet()){
+    		json += ",," + loginName + "##" + getUsers().get(loginName).getJSON();
+		}
+		json = json.substring(2);
+		return json;
+	}
+
+	public void parseJson(String json){
+		List<String> users = new ArrayList<>(Arrays.asList(json.split(",,")));
+		System.out.println("users size" + users.size());
+		//users.remove(users.size());
+		HashMap<String, User> tempUsers = new HashMap<>();
+		for (String user : users){
+			List<String> userInfo = new ArrayList<>(Arrays.asList(user.split("##")));
+			System.out.println("size of list" + userInfo.size());
+			User u = new User(UUID.fromString(userInfo.get(1)),
+					userInfo.get(2),
+					userInfo.get(3),
+					userInfo.get(4),
+					userInfo.get(5).getBytes());
+			tempUsers.put(userInfo.get(0), u);
+		}
+	}
 }

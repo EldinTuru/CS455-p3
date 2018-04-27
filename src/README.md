@@ -46,7 +46,7 @@ After building you may start the server with the following command:
 After starting the server we can start many clients using this command:
 
 	$ java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' IdClient --server <serverhosts> [--numport <port#] <query>
-	$ java -cp '.:../commons-cli-1.4/commons-cli-1.4.jar' IdClient --server 172.17.0.2 1099 --get users
+	$ java -cp '.;../commons-cli-1.4/commons-cli-1.4.jar' IdClient --server 172.17.0.2 1099 --get users
 
 You can fill the query at the top with any of the options below:
 --create <loginname> [<real name>] [--password <password>]
