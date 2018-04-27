@@ -14,6 +14,9 @@ public class Listener extends Thread {
     public static final String UPDATE_SERVER_LIST = "USL";
     public static final String IM_THE_COORDINATOR = "IAM";
     public static final String UPDATE_DB = "UDB";
+    public static final String PING = "PNG";
+    public static final String PONG = "ONG";
+    public static final String BULLY = "BLY";
     private IdServer server;
 
     private MulticastSocket socket;
@@ -31,13 +34,12 @@ public class Listener extends Thread {
                 DatagramPacket recv = new DatagramPacket(buf, buf.length);
                 socket.receive(recv);
 
-                System.out.println("Received Packet containing:");
-                System.out.println(new String(buf));
+                System.out.println("Received Packet containing: " + new String(buf));
 
                 //parsing packet
                 List<String> parsedPacket = new ArrayList<>(Arrays.asList((new String(buf)).split(";")));
                 String packetType = parsedPacket.get(0);
-                switch (packetType) {
+                switch (packetType.trim()) {
                     case ELECTION :
                         processElectionPacket();
                         break;
@@ -53,6 +55,15 @@ public class Listener extends Thread {
                     case UPDATE_DB:
                         processUpdateDBPacket(parsedPacket);
                         break;
+                    case PING:
+                        processPingPacket(); // coordinator only
+                        break;
+                    case PONG:
+                        processPongPacket();
+                        break;
+                    case BULLY:
+                        processBullyPacket();
+                        break;
                 }
 
             } catch (IOException e){
@@ -64,6 +75,37 @@ public class Listener extends Thread {
 
     private void processElectionPacket(){
 
+    }
+
+    private void processBullyPacket(){
+
+    }
+
+    private void processPingPacket(){
+        System.out.println("Processing ping packet while coordinator is: " + server.isCoordinator());
+        if (server.isCoordinator()) {
+            String packet = Listener.PONG;
+            StringWriter str = new StringWriter(packet.length());
+            str.write(packet, 0, packet.length());
+            try {
+                DatagramPacket electionPacket = new DatagramPacket(
+                        str.toString().getBytes(),
+                        str.toString().length(),
+                        InetAddress.getByName(IdServer.MULTICAST_ADDRESS),
+                        IdServer.MULTICAST_PORT);
+                System.out.println("Sent PONG");
+                socket.send(electionPacket);
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+            }
+        }
+    }
+
+    private void processPongPacket(){
+        if (!server.isCoordinator()) {
+            server.setTimeElapsed(0);
+            server.setWaitingOnReply(false);
+        }
     }
 
     private void processNewServerPacket(List<String> parsedPacket) {
@@ -111,6 +153,8 @@ public class Listener extends Thread {
     private void processImTheCoordinator(List<String> parsedPacket){
         if (server.comparePids(parsedPacket.get(1)) != 0) {
             server.setCoordinator(false);
+            server.setWaitingOnReply(false);
+            server.setTimeElapsed(0);
         } else {
             server.setCoordinator(true);
             server.startSaveStateThread();

@@ -1,5 +1,3 @@
-import jdk.nashorn.internal.runtime.regexp.joni.exception.ValueException;
-
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 import javax.rmi.ssl.SslRMIServerSocketFactory;
 import java.io.*;
@@ -29,11 +27,15 @@ public class IdServer implements Service, Runnable {
     public static final int MULTICAST_PORT = 5199;
     private HashMap<String, String> serverList = new HashMap<>();
     private MulticastSocket socket;
+    private int timeElapsed;
+    private boolean waitingOnReply;
 
 	@SuppressWarnings("unchecked")
    	public IdServer(boolean verbose) {
 		this.verbose = verbose;
 		this.socket = null;
+		this.timeElapsed = 0;
+		this.waitingOnReply = false;
 	    File f = new File("users_table.ser");
 	    if(f.exists()) {
 			try {
@@ -50,7 +52,6 @@ public class IdServer implements Service, Runnable {
 		} else {
 	    	users = new HashMap<>();
 		}
-		//startSaveStateThread();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -148,7 +149,7 @@ public class IdServer implements Service, Runnable {
 					System.out.println("Received list of PIDs/IPs from coordinator(lone server if empty): " + new String(buf));
 					// Now we have know there is a coordinator, get an updated Database
 
-					buf = new byte[65535];
+					buf = new byte[65506];
 					recv = new DatagramPacket(buf, buf.length);
 					try {
 						server.getSocket().receive(recv);
@@ -173,7 +174,7 @@ public class IdServer implements Service, Runnable {
 				// Check if this servers PID is biggest
 				for (String currPid: pidList) {
 					System.out.println("Comparing to: " + currPid);
-					if (Integer.parseInt(currPid.trim()) > Integer.parseInt(server.getMyPID())) {
+					if (server.comparePids(currPid.trim()) > 0) {
 						isBiggest = false;
 						break;
 					}
@@ -197,6 +198,8 @@ public class IdServer implements Service, Runnable {
 
         Listener listener = new Listener(server.getSocket(), server);
 		listener.start();
+        Ping ping = new Ping(server.getSocket(), server);
+        ping.start();
 
 		try {
 		    if (server.isCoordinator()) {
@@ -401,16 +404,18 @@ public class IdServer implements Service, Runnable {
 	public void sendUpdateDBPacket() {
 		String packet = Listener.UPDATE_DB + ";" + getJSON();
 		StringWriter str = new StringWriter(packet.length());
+		System.out.println(packet);
 		str.write(packet, 0, packet.length());
 		try {
 			DatagramPacket electionPacket = new DatagramPacket(
 					str.toString().getBytes(),
-					str.toString().length(),
+					packet.length(),
 					InetAddress.getByName(IdServer.MULTICAST_ADDRESS),
 					IdServer.MULTICAST_PORT);
 			socket.send(electionPacket);
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
+			e.printStackTrace();
 		}
 	}
 
@@ -504,22 +509,23 @@ public class IdServer implements Service, Runnable {
 
 	public String getJSON(){
     	String json = "";
-    	System.out.println(getUsers().get("eldin"));
     	for(String loginName : getUsers().keySet()){
     		json += ",," + loginName + "##" + getUsers().get(loginName).getJSON();
 		}
-		json = json.substring(2);
+		if (json.length() > 1)
+			json = json.substring(2);
 		return json;
 	}
 
 	public void parseJson(String json){
 		List<String> users = new ArrayList<>(Arrays.asList(json.split(",,")));
 		System.out.println("users size" + users.size());
-		//users.remove(users.size());
 		HashMap<String, User> tempUsers = new HashMap<>();
 		for (String user : users){
 			List<String> userInfo = new ArrayList<>(Arrays.asList(user.split("##")));
 			System.out.println("size of list" + userInfo.size());
+			if (userInfo.size() == 1)
+				break;
 			User u = new User(UUID.fromString(userInfo.get(1)),
 					userInfo.get(2),
 					userInfo.get(3),
@@ -530,4 +536,20 @@ public class IdServer implements Service, Runnable {
 		setUsers(tempUsers);
 		saveDB();
 	}
+
+    public int getTimeElapsed() {
+        return timeElapsed;
+    }
+
+    public void setTimeElapsed(int timeElapsed) {
+        this.timeElapsed = timeElapsed;
+    }
+
+    public boolean isWaitingOnReply() {
+        return waitingOnReply;
+    }
+
+    public void setWaitingOnReply(boolean waitingOnReply) {
+        this.waitingOnReply = waitingOnReply;
+    }
 }
