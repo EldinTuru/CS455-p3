@@ -527,5 +527,7 @@ public class IdServer implements Service, Runnable {
 					userInfo.get(5).getBytes());
 			tempUsers.put(userInfo.get(0), u);
 		}
+		setUsers(tempUsers);
+		saveDB();
 	}
 }
