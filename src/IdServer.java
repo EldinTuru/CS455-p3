@@ -421,7 +421,7 @@ public class IdServer implements Service, Runnable {
 		}
 	}
 
-	private void saveDB() {
+	public void saveDB() {
 		try {
 			FileOutputStream fos = new FileOutputStream("users_table.ser");
 			ObjectOutputStream oos = new ObjectOutputStream(fos);
